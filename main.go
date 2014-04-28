@@ -83,6 +83,10 @@ func get_image_uri(page []byte) string {
 	pattern := `<a href="(image\/\d{4}\/\w+\.jpg|png)">`
 	re := regexp.MustCompile(pattern)
 	match := re.FindAllStringSubmatch(string(page[:]), 1)
+	if match == nil {
+		fmt.Println("No image found today!")
+		os.Exit(0)
+	}
 	return match[0][1]
 }
 
