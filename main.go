@@ -24,6 +24,12 @@ import (
 	"strings"
 )
 
+const (
+	url     = "http://apod.nasa.gov"
+	scriptf = "/tmp/background.scpt"
+	pattern = `<a href="(image\/\d{4}\/\w+\.jpg|png)"`
+)
+
 func set_background(fname string) {
 	fmt.Println("Setting APOD picture to desktop background.")
 
