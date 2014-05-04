@@ -99,6 +99,9 @@ func get_image_uri(page []byte) string {
 func fetch_page(url string) []byte {
 	fmt.Println("Fetching APOD page.")
 	resp, e := http.Get(url)
+
+	defer resp.Body.Close()
+
 	if e != nil {
 		fmt.Printf("Error while contacting APOD: %s\n", e.Error())
 		os.Exit(1)
@@ -112,7 +115,6 @@ func fetch_page(url string) []byte {
 }
 
 func main() {
-	url := "http://apod.nasa.gov"
 	page := fetch_page(url)
 	img_uri := get_image_uri(page)
 	fname := download_image(url, img_uri)
