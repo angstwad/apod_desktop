@@ -56,12 +56,14 @@ func set_background(fname string) {
 
 func download_image(url string, uri string) string {
 	fmt.Printf("Downloading photo...")
-	img_url := url + "/" + uri
+	img_url := fmt.Sprintf("%s/%s", url, uri)
 	resp, e := http.Get(img_url)
 	if e != nil {
 		fmt.Printf("Error downloading APOD photo: %s\n", e.Error())
 		os.Exit(1)
 	}
+
+	defer resp.Body.Close()
 
 	body, e := ioutil.ReadAll(resp.Body)
 	if e != nil {
@@ -69,8 +71,8 @@ func download_image(url string, uri string) string {
 		os.Exit(1)
 	}
 
-	ext := strings.Split(uri, ".")
-	fname := "/tmp/apod." + ext[len(ext)-1:][0]
+	ext := strings.Split(uri, ".")[1]
+	fname := fmt.Sprintf("/tmp/apod.%s", ext)
 	var mode os.FileMode = 0644
 	e = ioutil.WriteFile(fname, body, mode)
 	if e != nil {
@@ -85,9 +87,8 @@ func download_image(url string, uri string) string {
 
 func get_image_uri(page []byte) string {
 	fmt.Println("Getting APOD image URL.")
-	pattern := `<a href="(image\/\d{4}\/\w+\.jpg|png)">`
 	re := regexp.MustCompile(pattern)
-	match := re.FindAllStringSubmatch(string(page[:]), 1)
+	match := re.FindAllStringSubmatch(string(page), 1)
 	if match == nil {
 		fmt.Println("No image found today!")
 		os.Exit(0)
