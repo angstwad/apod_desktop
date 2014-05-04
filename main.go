@@ -33,9 +33,8 @@ const (
 func set_background(fname string) {
 	fmt.Println("Setting APOD picture to desktop background.")
 
-	osacmd := fmt.Sprintf(`tell application "System Events" to set picture of every desktop to "%s"`, fname)
-	cmdbytes := []byte(osacmd)
-	scriptf := "/tmp/background.scpt"
+	cmdbytes := []byte(fmt.Sprintf(`tell application "System Events" to set picture of every desktop to "%s"`, fname))
+
 	var mode os.FileMode = 0644
 	e := ioutil.WriteFile(scriptf, cmdbytes, mode)
 	if e != nil {
