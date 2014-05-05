@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -114,7 +115,23 @@ func fetch_page(url string) []byte {
 	return body
 }
 
+func check_conn() {
+	fmt.Print("Checking connection...")
+	for i := 0; i < 12; i++ {
+		_, e := http.Get(url)
+		if e != nil {
+			fmt.Println("\nThere was a problem; sleeping for 5 seconds.")
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		fmt.Println("Ok.")
+		break
+	}
+
+}
+
 func main() {
+	check_conn()
 	page := fetch_page(url)
 	img_uri := get_image_uri(page)
 	fname := download_image(url, img_uri)
