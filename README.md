@@ -2,7 +2,7 @@
 
 This was my first attempt at some Go.  It's probably suckariffic.
 
-I wanted to make sure my desktop was rotating daily and being set to the [NASA APOD](http://apod.nasa.gov/‎), because, you know, why not?  
+I wanted to make sure my desktop was rotating daily and being set to the [NASA APOD](http://apod.nasa.gov), because, you know, why not?  
 
 ### Contents
 
