@@ -15,125 +15,126 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os"
-	"os/exec"
-	"regexp"
-	"strings"
-	"time"
+    "os"
+    "fmt"
+    "time"
+    "regexp"
+    "os/exec"
+    "strings"
+    "net/http"
+    "io/ioutil"
 )
 
 const (
-	url     = "http://apod.nasa.gov"
-	scriptf = "/tmp/background.scpt"
-	pattern = `<a href="(image\/\d{4}\/\w+\.jpg|png)"`
+    // url = "http://apod.nasa.gov"
+    url     = "http://apod.nasa.gov/apod/ap140511.html"
+    scriptf = "/tmp/background.scpt"
+    pattern = `(?i)<img src="(image\/\d{4}\/\w+\.jpg|png|jpeg)"`
 )
 
-func set_background(fname string) {
-	fmt.Println("Setting APOD picture to desktop background.")
+func setBackground(fname string) {
+    fmt.Println("Setting APOD picture to desktop background.")
 
-	cmdbytes := []byte(fmt.Sprintf(`tell application "System Events" to set picture of every desktop to "%s"`, fname))
+    cmdbytes := []byte(fmt.Sprintf(`tell application "System Events" to set picture of every desktop to "%s"`, fname))
 
-	var mode os.FileMode = 0644
-	e := ioutil.WriteFile(scriptf, cmdbytes, mode)
-	if e != nil {
-		fmt.Printf("Error writing AppleScript file: %s\n", e.Error())
-		os.Exit(1)
-	}
+    var mode os.FileMode = 0644
+    e := ioutil.WriteFile(scriptf, cmdbytes, mode)
+    if e != nil {
+        fmt.Printf("Error writing AppleScript file: %s\n", e.Error())
+        os.Exit(1)
+    }
 
-	_, e = exec.Command("/usr/bin/osascript", scriptf).CombinedOutput()
-	if e != nil {
-		fmt.Printf("Error setting APOD picture to background: \n%s\n", e.Error())
-		os.Exit(1)
-	}
+    _, e = exec.Command("/usr/bin/osascript", scriptf).CombinedOutput()
+    if e != nil {
+        fmt.Printf("Error setting APOD picture to background: \n%s\n", e.Error())
+        os.Exit(1)
+    }
 
-	e = os.Remove(scriptf)
-	if e != nil {
-		fmt.Printf("Error deleting file: %s\n", e.Error())
-	}
+    e = os.Remove(scriptf)
+    if e != nil {
+        fmt.Printf("Error deleting file: %s\n", e.Error())
+    }
 }
 
-func download_image(url string, uri string) string {
-	fmt.Printf("Downloading photo...")
-	img_url := fmt.Sprintf("%s/%s", url, uri)
-	resp, e := http.Get(img_url)
-	if e != nil {
-		fmt.Printf("Error downloading APOD photo: %s\n", e.Error())
-		os.Exit(1)
-	}
+func downloadImg(url string, uri string) string {
+    fmt.Printf("Downloading photo...")
+    imgURL := fmt.Sprintf("%s/%s", url, uri)
+    resp, e := http.Get(imgURL)
+    if e != nil {
+        fmt.Printf("Error downloading APOD photo: %s\n", e.Error())
+        os.Exit(1)
+    }
 
-	defer resp.Body.Close()
+    defer resp.Body.Close()
 
-	body, e := ioutil.ReadAll(resp.Body)
-	if e != nil {
-		fmt.Printf("Error reading response from APOD: %s\n", e.Error())
-		os.Exit(1)
-	}
+    body, e := ioutil.ReadAll(resp.Body)
+    if e != nil {
+        fmt.Printf("Error reading response from APOD: %s\n", e.Error())
+        os.Exit(1)
+    }
 
-	ext := strings.Split(uri, ".")[1]
-	fname := fmt.Sprintf("/tmp/apod.%s", ext)
-	var mode os.FileMode = 0644
-	e = ioutil.WriteFile(fname, body, mode)
-	if e != nil {
-		fmt.Printf("Error writing file to ", e.Error())
-		os.Exit(1)
-	}
-	fmt.Println("Done.")
-	fmt.Printf("Photo saved to %s.\n", fname)
+    ext := strings.Split(uri, ".")[1]
+    fname := fmt.Sprintf("/tmp/apod.%s", ext)
+    var mode os.FileMode = 0644
+    e = ioutil.WriteFile(fname, body, mode)
+    if e != nil {
+        fmt.Printf("Error writing file to ", e.Error())
+        os.Exit(1)
+    }
+    fmt.Println("Done.")
+    fmt.Printf("Photo saved to %s.\n", fname)
 
-	return fname
+    return fname
 }
 
-func get_image_uri(page []byte) string {
-	fmt.Println("Getting APOD image URL.")
-	re := regexp.MustCompile(pattern)
-	match := re.FindAllStringSubmatch(string(page), 1)
-	if match == nil {
-		fmt.Println("No image found today!")
-		os.Exit(0)
-	}
-	return match[0][1]
+func getImgURI(page []byte) string {
+    fmt.Println("Getting APOD image URL.")
+    re := regexp.MustCompile(pattern)
+    match := re.FindAllStringSubmatch(string(page), 1)
+    if match == nil {
+        fmt.Println("No image found today!")
+        os.Exit(0)
+    }
+    fmt.Println(match)
+    return match[0][1]
 }
 
-func fetch_page(url string) []byte {
-	fmt.Println("Fetching APOD page.")
-	resp, e := http.Get(url)
+func fetchPage(url string) []byte {
+    fmt.Println("Fetching APOD page.")
+    resp, e := http.Get(url)
 
-	defer resp.Body.Close()
+    defer resp.Body.Close()
 
-	if e != nil {
-		fmt.Printf("Error while contacting APOD: %s\n", e.Error())
-		os.Exit(1)
-	}
-	body, e := ioutil.ReadAll(resp.Body)
-	if e != nil {
-		fmt.Printf("Error reading response from APOD: %s\n", e.Error())
-		os.Exit(1)
-	}
-	return body
+    if e != nil {
+        fmt.Printf("Error while contacting APOD: %s\n", e.Error())
+        os.Exit(1)
+    }
+    body, e := ioutil.ReadAll(resp.Body)
+    if e != nil {
+        fmt.Printf("Error reading response from APOD: %s\n", e.Error())
+        os.Exit(1)
+    }
+    return body
 }
 
-func check_conn() {
-	fmt.Print("Checking connection...")
-	for i := 0; i < 12; i++ {
-		_, e := http.Get(url)
-		if e != nil {
-			fmt.Println("\nThere was a problem; sleeping for 5 seconds.")
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		fmt.Println("Ok.")
-		break
-	}
-
+func checkConn() {
+    fmt.Print("Checking connection...")
+    for i := 0; i < 12; i++ {
+        _, e := http.Get(url)
+        if e != nil {
+            fmt.Println("\nThere was a problem; sleeping for 5 seconds.")
+            time.Sleep(5 * time.Second)
+            continue
+        }
+        fmt.Println("Ok.")
+        break
+    }
 }
 
 func main() {
-	check_conn()
-	page := fetch_page(url)
-	img_uri := get_image_uri(page)
-	fname := download_image(url, img_uri)
-	set_background(fname)
+    checkConn()
+    page := fetchPage(url)
+    imgURI := getImgURI(page)
+    fname := downloadImg(url, imgURI)
+    setBackground(fname)
 }
