@@ -15,76 +15,82 @@
 package main
 
 import (
-    "os"
     "fmt"
-    "time"
-    "regexp"
-    "os/exec"
-    "strings"
-    "net/http"
     "io/ioutil"
+    "net/http"
+    "os"
+    "os/exec"
+    "regexp"
+    "time"
+    "log"
+    "errors"
 )
 
 const (
-    // url = "http://apod.nasa.gov"
-    url     = "http://apod.nasa.gov/apod/ap140511.html"
-    scriptf = "/tmp/background.scpt"
+    baseurl = "http://apod.nasa.gov"
+    pageurl = "http://apod.nasa.gov/apod/astropix.html"
     pattern = `(?i)<img src="(image\/\d{4}\/\w+\.jpg|png|jpeg)"`
 )
 
 func setBackground(fname string) {
     fmt.Println("Setting APOD picture to desktop background.")
 
-    cmdbytes := []byte(fmt.Sprintf(`tell application "System Events" to set picture of every desktop to "%s"`, fname))
+    cmd := `tell application "System Events"
+    set desktopCount to count of desktops
+    repeat with desktopNumber from 1 to desktopCount
+        tell desktop desktopNumber
+            set picture to "%s"
+        end tell
+    end repeat
+end tell`
 
-    var mode os.FileMode = 0644
-    e := ioutil.WriteFile(scriptf, cmdbytes, mode)
+    cmdbytes := []byte(fmt.Sprintf(cmd, fname))
+
+    tmp, e := ioutil.TempFile("", "apod")
     if e != nil {
-        fmt.Printf("Error writing AppleScript file: %s\n", e.Error())
-        os.Exit(1)
+        log.Fatal("Error opening temp file.", e.Error())
     }
 
-    _, e = exec.Command("/usr/bin/osascript", scriptf).CombinedOutput()
-    if e != nil {
-        fmt.Printf("Error setting APOD picture to background: \n%s\n", e.Error())
-        os.Exit(1)
+    defer os.Remove(tmp.Name())
+
+    if _, e := tmp.Write(cmdbytes); e != nil {
+        log.Fatal(fmt.Sprintf("Error writing AppleScript file: %s\n", e.Error()))
     }
 
-    e = os.Remove(scriptf)
-    if e != nil {
-        fmt.Printf("Error deleting file: %s\n", e.Error())
+    if _, e = exec.Command("/usr/bin/osascript", tmp.Name()).CombinedOutput(); e != nil {
+        log.Fatal(fmt.Sprintf("Error setting APOD picture to background: \n%s\n", e.Error()))
     }
 }
 
-func downloadImg(url string, uri string) string {
-    fmt.Printf("Downloading photo...")
+func downloadAndSet(url string, uri string) {
+    fmt.Println("Downloading photo...")
     imgURL := fmt.Sprintf("%s/%s", url, uri)
     resp, e := http.Get(imgURL)
     if e != nil {
-        fmt.Printf("Error downloading APOD photo: %s\n", e.Error())
-        os.Exit(1)
+        log.Fatal(fmt.Sprintf("Error downloading APOD photo: %s\n", e.Error()))
     }
 
     defer resp.Body.Close()
 
     body, e := ioutil.ReadAll(resp.Body)
     if e != nil {
-        fmt.Printf("Error reading response from APOD: %s\n", e.Error())
-        os.Exit(1)
+        log.Fatal(fmt.Sprintf("Error reading response from APOD: %s\n", e.Error()))
     }
 
-    ext := strings.Split(uri, ".")[1]
-    fname := fmt.Sprintf("/tmp/apod.%s", ext)
-    var mode os.FileMode = 0644
-    e = ioutil.WriteFile(fname, body, mode)
+    tmp, e := ioutil.TempFile("", "apod")
     if e != nil {
-        fmt.Printf("Error writing file to ", e.Error())
-        os.Exit(1)
+        log.Fatal("Error opening temp file. ", e.Error())
+    }
+
+    defer os.Remove(tmp.Name())
+
+    if _, err := tmp.Write(body); err != nil {
+        log.Fatal("Error writing file to ", e.Error())
     }
     fmt.Println("Done.")
-    fmt.Printf("Photo saved to %s.\n", fname)
+    fmt.Printf("Image saved to %s.\n", tmp.Name())
 
-    return fname
+    setBackground(tmp.Name())
 }
 
 func getImgURI(page []byte) string {
@@ -92,10 +98,9 @@ func getImgURI(page []byte) string {
     re := regexp.MustCompile(pattern)
     match := re.FindAllStringSubmatch(string(page), 1)
     if match == nil {
-        fmt.Println("No image found today!")
-        os.Exit(0)
+        log.Fatal("No image found today!")
     }
-    fmt.Println(match)
+    fmt.Printf("Image URI is '%s'.\n", match[0][1])
     return match[0][1]
 }
 
@@ -106,35 +111,38 @@ func fetchPage(url string) []byte {
     defer resp.Body.Close()
 
     if e != nil {
-        fmt.Printf("Error while contacting APOD: %s\n", e.Error())
-        os.Exit(1)
+        log.Fatal(fmt.Sprintf("Error while contacting APOD: %s\n", e.Error()))
     }
     body, e := ioutil.ReadAll(resp.Body)
     if e != nil {
-        fmt.Printf("Error reading response from APOD: %s\n", e.Error())
-        os.Exit(1)
+        log.Fatal(fmt.Sprintf("Error reading response from APOD: %s\n", e.Error()))
     }
     return body
 }
 
-func checkConn() {
+func checkConn() error {
     fmt.Print("Checking connection...")
-    for i := 0; i < 12; i++ {
-        _, e := http.Get(url)
-        if e != nil {
-            fmt.Println("\nThere was a problem; sleeping for 5 seconds.")
+    tries := 12
+    for i := 0; i < tries; i++ {
+        if _, e := http.Get(pageurl); e != nil {
+            if i == 0 {
+                fmt.Println()
+            }
+            fmt.Printf("Couldn't connect, sleeping for 5 seconds; remaining tries: %v\n", tries - (i + 1))
             time.Sleep(5 * time.Second)
             continue
         }
         fmt.Println("Ok.")
-        break
+        return nil
     }
+    return errors.New("could not connect to apod.nasa.gov")
 }
 
 func main() {
-    checkConn()
-    page := fetchPage(url)
+    if err := checkConn(); err != nil {
+        log.Fatal(err)
+    }
+    page := fetchPage(pageurl)
     imgURI := getImgURI(page)
-    fname := downloadImg(url, imgURI)
-    setBackground(fname)
+    downloadAndSet(baseurl, imgURI)
 }
